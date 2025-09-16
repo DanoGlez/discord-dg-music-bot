@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const commands = require('./commands');
 const { handlePlay, handleQueue, handleSkip, handleStop } = require('./commandHandlers');
+const { initializePlayDL } = require('./playDLConfig');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 
@@ -19,7 +20,13 @@ async function registerCommands() {
   }
 }
 
-registerCommands();
+// Initialize play-dl before registering commands
+async function initialize() {
+  await initializePlayDL();
+  await registerCommands();
+}
+
+initialize();
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
