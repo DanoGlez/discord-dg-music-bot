@@ -163,7 +163,7 @@ async function handlePlay(interaction) {
           ]);
           
           if (ytRes.videos.length > 0) {
-            const alternative = ytRes.videos[0];
+            let alternative = ytRes.videos[0];
             // Skip if it's the same URL that failed
             if (alternative.url === next.url && ytRes.videos.length > 1) {
               alternative = ytRes.videos[1];
