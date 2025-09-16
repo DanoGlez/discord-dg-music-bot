@@ -11,7 +11,7 @@ async function handlePlay(interaction) {
   await interaction.deferReply();
   
   const guildId = interaction.guild.id;
-  const query = interaction.options.getString('query');
+  let query = interaction.options.getString('query');
   let url = query;
   let title = query;
   let isPlaylist = false;
