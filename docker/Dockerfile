@@ -9,7 +9,7 @@ RUN apk add --no-cache ffmpeg python3 make g++ && \
 WORKDIR /app
 
 # Copia package.json y crea una versión sin scripts prepare
-COPY package.json package-lock.json ./
+COPY package*.json ./
 RUN sed -i '/"prepare":/d' package.json || true
 
 # Instala solo dependencias de producción
