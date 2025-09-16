@@ -8,11 +8,12 @@ RUN apk add --no-cache ffmpeg python3 make g++ && \
 # Crea directorio de trabajo
 WORKDIR /app
 
-# Copia archivos de dependencias
-COPY package*.json ./
+# Copia package.json y crea una versión sin scripts prepare
+COPY package.json package-lock.json ./
+RUN sed -i '/"prepare":/d' package.json || true
 
-# Instala solo dependencias de producción (sin scripts de prepare/postinstall)
-RUN npm ci --only=production --ignore-scripts && npm cache clean --force
+# Instala solo dependencias de producción
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # Copia código fuente
 COPY . .
