@@ -1,13 +1,13 @@
 version: '3.8'
 services:
-  bot:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    env_file:
-      - ../.env
-    volumes:
-      - ../:/app
-    command: npm start
-    restart: unless-stopped
-    tty: true
+  discord-music-bot:
+    environment:
+      - NODE_ENV=production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M

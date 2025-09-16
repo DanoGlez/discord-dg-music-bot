@@ -1,12 +1,46 @@
 version: '3.8'
+
 services:
-  bot:
+  discord-music-bot:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    container_name: discord-dg-music-bot
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
     env_file:
       - ../.env
     volumes:
-      - ../:/app
-    restart: unless-stopped
-    tty: true
+      # Mount data directory for persistence using named volume
+      - bot-data:/app/data
+      # Optional: mount logs if implemented  
+      - bot-logs:/app/logs
+    networks:
+      - bot-network
+    # Optional healthcheck
+    healthcheck:
+      test: ['CMD', 'node', '-e', 'process.exit(0)']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Limit resources to prevent excessive usage
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+networks:
+  bot-network:
+    driver: bridge
+
+volumes:
+  bot-data:
+    driver: local
+  bot-logs:
+    driver: local
