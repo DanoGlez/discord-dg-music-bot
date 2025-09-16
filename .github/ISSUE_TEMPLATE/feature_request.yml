@@ -1,0 +1,115 @@
+name: Feature Request 💡
+description: Suggest a new feature or enhancement for the Discord Voice Timer Bot
+title: '[FEATURE] '
+labels: ['enhancement', 'needs-triage']
+assignees: []
+
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for suggesting a new feature! 
+              Your ideas help make this bot better for everyone. 🚀
+
+    - type: checkboxes
+      id: terms
+      attributes:
+          label: Pre-flight Checklist
+          description: Please confirm you have completed these steps
+          options:
+              - label: I have searched existing issues to ensure this feature hasn't been requested already
+                required: true
+              - label: I have checked the documentation to see if this feature already exists
+                required: true
+              - label: This feature request is not a bug report (use the bug template for those)
+                required: true
+
+    - type: textarea
+      id: problem
+      attributes:
+          label: Problem Description
+          description: What problem does this feature solve? Is your feature request related to a problem?
+          placeholder: "I'm always frustrated when..."
+      validations:
+          required: true
+
+    - type: textarea
+      id: solution
+      attributes:
+          label: Proposed Solution
+          description: Describe the solution you'd like to see implemented
+          placeholder: 'I would like to have a command that...'
+      validations:
+          required: true
+
+    - type: dropdown
+      id: feature-type
+      attributes:
+          label: Feature Type
+          description: What type of feature is this?
+          options:
+              - New Command
+              - Data/Statistics Enhancement
+              - Performance Improvement
+              - User Interface/Experience
+              - Integration with other services
+              - Configuration/Settings
+              - Security/Privacy
+              - Other
+      validations:
+          required: true
+
+    - type: dropdown
+      id: priority
+      attributes:
+          label: Priority Level
+          description: How important is this feature to you?
+          options:
+              - Low - Nice to have
+              - Medium - Would improve my experience
+              - High - Important for my use case
+              - Critical - Blocking my workflow
+      validations:
+          required: true
+
+    - type: textarea
+      id: alternatives
+      attributes:
+          label: Alternative Solutions
+          description: Have you considered any alternative solutions or workarounds?
+          placeholder: "I've tried using... but it doesn't work because..."
+
+    - type: textarea
+      id: use-case
+      attributes:
+          label: Use Case Examples
+          description: Provide specific examples of how this feature would be used
+          placeholder: |
+              1. User runs `/command` 
+              2. Bot responds with...
+              3. This helps because...
+
+    - type: textarea
+      id: mockup
+      attributes:
+          label: Mockups/Screenshots
+          description: If applicable, add mockups, sketches, or screenshots of similar features
+          placeholder: 'Drag and drop images here or describe the UI you envision'
+
+    - type: checkboxes
+      id: implementation
+      attributes:
+          label: Implementation Interest
+          description: Would you be interested in helping implement this feature?
+          options:
+              - label: I would like to implement this feature myself
+              - label: I can help with testing this feature
+              - label: I can help with documentation for this feature
+              - label: I'm just suggesting the idea
+
+    - type: textarea
+      id: additional
+      attributes:
+          label: Additional Context
+          description: Add any other context, technical details, or considerations about the feature request
+          placeholder: 'This feature would work well with... / Technical considerations include...'

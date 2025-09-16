@@ -1,0 +1,70 @@
+{
+    "name": "discord-music-bot",
+    "version": "1.0.0",
+    "description": "Bot de Discord para reproducir música de YouTube y buscar en Spotify.",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "nodemon index.js",
+        "test": "node --test",
+        "lint": "eslint . --ext .js",
+        "lint:fix": "eslint . --ext .js --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "prepare": "npm run lint && npm run format:check"
+    },
+    "keywords": [
+        "discord",
+        "bot",
+        "music",
+        "youtube",
+        "spotify",
+        "discord.js",
+        "voice",
+        "slash-commands",
+        "queue",
+        "multi-server",
+        "docker",
+        "makefile"
+    ],
+    "author": {
+        "name": "DanoGlez",
+        "email": "contact@danoglez.com",
+        "url": "https://github.com/DanoGlez"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/DanoGlez/discord-dg-music-bot.git"
+    },
+    "bugs": {
+        "url": "https://github.com/DanoGlez/discord-dg-music-bot/issues"
+    },
+    "homepage": "https://github.com/DanoGlez/discord-dg-music-bot#readme",
+    "engines": {
+        "node": ">=18.0.0",
+        "npm": ">=8.0.0"
+    },
+    "dependencies": {
+        "discord.js": "^14.14.1",
+        "dotenv": "^16.4.5"
+    },
+    "devDependencies": {
+        "eslint": "^8.57.1",
+        "nodemon": "^3.1.10",
+        "prettier": "^3.6.2"
+    },
+    "funding": {
+        "type": "github",
+        "url": "https://github.com/sponsors/DanoGlez"
+    },
+    "os": [
+        "linux",
+        "darwin",
+        "win32"
+    ],
+    "cpu": [
+        "x64",
+        "arm64"
+    ]
+}
