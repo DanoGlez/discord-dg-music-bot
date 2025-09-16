@@ -12,8 +12,8 @@ RUN apk add --no-cache \
     curl \
     && ln -sf python3 /usr/bin/python
 
-# Install yt-dlp globally
-RUN pip3 install yt-dlp
+# Install yt-dlp globally (override externally-managed-environment)
+RUN pip3 install --break-system-packages yt-dlp
 
 # Crea directorio de trabajo
 WORKDIR /app
