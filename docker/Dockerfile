@@ -2,7 +2,19 @@
 FROM node:22-alpine
 
 # Instala ffmpeg y dependencias del sistema para cifrado de voz
-RUN apk add --no-cache ffmpeg python3 make g++ libsodium-dev && \
+# Install system dependencies including yt-dlp
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    python3 \
+    python3-pip \
+    g++ \
+    make \
+    libsodium-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install yt-dlp globally
+RUN pip3 install yt-dlp
     ln -sf python3 /usr/bin/python
 
 # Crea directorio de trabajo

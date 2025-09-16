@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('dotenv').config({ path: '.env.antibot' });
 const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const commands = require('./commands');
 const { handlePlay, handleQueue, handleSkip, handleStop, handleTest } = require('./commandHandlers');

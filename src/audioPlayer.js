@@ -2,6 +2,7 @@ const { joinVoiceChannel, createAudioPlayer, createAudioResource, NoSubscriberBe
 const play = require('play-dl');
 const { getServerQueue, scheduleAutoDisconnect, cancelAutoDisconnect } = require('./queueManager');
 const { searchWithRetry } = require('./playDLConfig');
+const { YtdlpFallback } = require('./ytdlpFallback');
 
 async function createPlayer(voiceChannel, interaction) {
   const guildId = interaction.guild.id;
@@ -78,6 +79,10 @@ async function handlePlaybackError(song, error, player, playNext, interaction) {
   let errorMessage = 'Unknown playback error';
   if (error.message.includes('Video unavailable')) {
     errorMessage = 'Video is unavailable';
+  } else if (error.message.includes('Sign in to confirm')) {
+    errorMessage = 'YouTube bot detection - trying fallback method';
+  } else if (error.message.includes('While getting info from url')) {
+    errorMessage = 'YouTube access blocked - trying fallback method';
   } else if (error.message.includes('Private video')) {
     errorMessage = 'Private or restricted video';
   } else if (error.message.includes('age-restricted')) {
@@ -88,9 +93,53 @@ async function handlePlaybackError(song, error, player, playNext, interaction) {
     errorMessage = 'Request timed out';
   }
   
-  // Try to find an alternative
+  console.log(`🚨 Playbook error for "${song.title}": ${errorMessage}`);
+  
+  // Try yt-dlp fallback if enabled and error suggests bot detection
+  if (process.env.USE_YTDLP_FALLBACK === 'true' && 
+      (error.message.includes('Sign in to confirm') || 
+       error.message.includes('While getting info from url'))) {
+    
+    console.log(`🔄 Attempting yt-dlp fallback for: ${song.title}`);
+    
+    try {
+      const ytdlpFallback = new YtdlpFallback();
+      const streamInfo = await ytdlpFallback.getStreamUrl(song.url);
+      
+      console.log(`✅ yt-dlp fallback successful, creating resource...`);
+      
+      // Create audio resource from yt-dlp stream
+      const resource = createAudioResource(streamInfo.url, {
+        inputType: 'webm/opus'
+      });
+      
+      player.play(resource);
+      player.once('idle', playNext);
+      
+      // Update song info from yt-dlp if available
+      if (streamInfo.title && streamInfo.title !== 'Unknown') {
+        song.title = streamInfo.title;
+      }
+      
+      try {
+        await interaction.followUp({ 
+          content: `🎶 Now playing via fallback: **${song.title}** (requested by ${song.requestedBy})` 
+        });
+      } catch (followUpError) {
+        console.log('Could not send follow-up message (interaction may have expired)');
+      }
+      
+      return; // Success with fallback
+      
+    } catch (fallbackError) {
+      console.error(`❌ yt-dlp fallback also failed: ${fallbackError.message}`);
+      errorMessage = `Both play-dl and yt-dlp failed: ${fallbackError.message}`;
+    }
+  }
+  
+  // If fallback failed or not enabled, try alternative search
   try {
-    console.log(`Searching for alternative to: ${song.title}`);
+    console.log(`🔍 Searching for alternative to: ${song.title}`);
     
     const searchResults = await searchWithRetry(song.title, { limit: 5 });
     
@@ -105,27 +154,55 @@ async function handlePlaybackError(song, error, player, playNext, interaction) {
       
       console.log(`Alternative found: ${alternative.title} - ${alternative.url}`);
       
-      // Try to play the alternative
-      const altStream = await play.stream(alternative.url, { 
-        quality: 2,
-        filter: 'audioonly',
-        seek: 0,
-        discordPlayerCompatibility: true
-      });
-      
-      const resource = createAudioResource(altStream.stream, {
-        inputType: altStream.type
-      });
-      
-      player.play(resource);
-      player.once('idle', playNext);
-      
+      // Try to play the alternative with play-dl first
       try {
-        await interaction.followUp({ 
-          content: `🎶 Now playing (alternative): **${alternative.title}** (requested by ${song.requestedBy})\n⚠️ Original video: ${errorMessage.toLowerCase()}` 
+        const altStream = await play.stream(alternative.url, { 
+          quality: 2,
+          filter: 'audioonly',
+          seek: 0,
+          discordPlayerCompatibility: true
         });
-      } catch (followUpError) {
-        console.log('Could not send alternative follow-up message');
+        
+        const resource = createAudioResource(altStream.stream, {
+          inputType: altStream.type
+        });
+        
+        player.play(resource);
+        player.once('idle', playNext);
+        
+        try {
+          await interaction.followUp({ 
+            content: `🎶 Now playing (alternative): **${alternative.title}** (requested by ${song.requestedBy})\n⚠️ Original video: ${errorMessage.toLowerCase()}` 
+          });
+        } catch (followUpError) {
+          console.log('Could not send alternative follow-up message');
+        }
+        
+      } catch (altError) {
+        // If alternative also fails with play-dl, try yt-dlp fallback
+        if (process.env.USE_YTDLP_FALLBACK === 'true') {
+          console.log(`🔄 Alternative failed with play-dl, trying yt-dlp for: ${alternative.title}`);
+          
+          const ytdlpFallback = new YtdlpFallback();
+          const streamInfo = await ytdlpFallback.getStreamUrl(alternative.url);
+          
+          const resource = createAudioResource(streamInfo.url, {
+            inputType: 'webm/opus'
+          });
+          
+          player.play(resource);
+          player.once('idle', playNext);
+          
+          try {
+            await interaction.followUp({ 
+              content: `🎶 Now playing alternative via fallback: **${streamInfo.title || alternative.title}** (requested by ${song.requestedBy})` 
+            });
+          } catch (followUpError) {
+            console.log('Could not send follow-up message (interaction may have expired)');
+          }
+        } else {
+          throw altError;
+        }
       }
     } else {
       throw new Error('No alternatives found');

@@ -294,7 +294,7 @@ async function handleTest(interaction) {
         overallStatus = '⚠️';
       }
       
-      // Test 5: Test streaming capability (only if search was successful)
+      // Test 5: Test streaming capability with fallback (only if search was successful)
       if (searchResults && searchResults.length > 0) {
         testResults.push('🔄 **Testing audio streaming...**');
         try {
@@ -309,7 +309,7 @@ async function handleTest(interaction) {
             inputType: stream.type
           });
           
-          testResults.push('✅ **Audio Streaming**: Stream created successfully');
+          testResults.push('✅ **Audio Streaming**: Stream created successfully with play-dl');
           
           // Clean up
           if (stream.stream && typeof stream.stream.destroy === 'function') {
@@ -318,6 +318,25 @@ async function handleTest(interaction) {
         } catch (streamError) {
           console.log(`[TEST] Stream error: ${streamError.message}`);
           testResults.push(`❌ **Audio Streaming**: ${streamError.message}`);
+          
+          // Test yt-dlp fallback if enabled
+          if (process.env.USE_YTDLP_FALLBACK === 'true') {
+            try {
+              testResults.push('🔄 **Testing yt-dlp fallback...**');
+              const { YtdlpFallback } = require('../ytdlpFallback');
+              const ytdlpFallback = new YtdlpFallback();
+              
+              const streamInfo = await ytdlpFallback.getStreamUrl(searchResults[0].url);
+              testResults.push(`✅ **yt-dlp Fallback**: Successfully extracted stream for "${streamInfo.title}"`);
+              
+            } catch (fallbackError) {
+              testResults.push(`❌ **yt-dlp Fallback**: ${fallbackError.message}`);
+              overallStatus = '❌';
+            }
+          } else {
+            testResults.push('⚠️ **yt-dlp Fallback**: Disabled in configuration');
+          }
+          
           overallStatus = '❌';
         }
       } else {
