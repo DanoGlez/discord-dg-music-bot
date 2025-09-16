@@ -323,7 +323,7 @@ async function handleTest(interaction) {
           if (process.env.USE_YTDLP_FALLBACK === 'true') {
             try {
               testResults.push('🔄 **Testing yt-dlp fallback...**');
-              const { YtdlpFallback } = require('../ytdlpFallback');
+              const { YtdlpFallback } = require('./ytdlpFallback');
               const ytdlpFallback = new YtdlpFallback();
               
               const streamInfo = await ytdlpFallback.getStreamUrl(searchResults[0].url);
