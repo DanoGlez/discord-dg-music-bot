@@ -19,37 +19,34 @@ async function handlePlay(interaction) {
 
   try {
     // Check if it's a YouTube URL (single video or playlist)
-    if (play.yt_validate(url) !== false) {
-      const urlType = play.yt_validate(url);
-      console.log(`Valid YouTube URL detected: ${urlType}`);
+    const urlType = play.yt_validate(url);
+    
+    if (urlType === 'playlist') {
+      console.log(`Processing YouTube playlist: ${url}`);
+      isPlaylist = true;
       
-      if (urlType === 'playlist') {
-        console.log(`Processing YouTube playlist: ${url}`);
-        isPlaylist = true;
-        
-        // Get playlist info
-        playlistInfo = await play.playlist_info(url, { incomplete: true });
-        const videos = await playlistInfo.all_videos();
-        
-        if (videos.length === 0) {
-          return interaction.editReply('❌ This playlist is empty or private.');
-        }
-        
-        console.log(`Playlist found: ${playlistInfo.title} - ${videos.length} videos`);
-        
-        // Use first video info for initial setup
-        title = playlistInfo.title;
-        url = videos[0].url;
-        
-      } else if (urlType === 'video') {
-        console.log(`Processing YouTube video: ${url}`);
-        const videoInfo = await play.video_info(url);
-        title = videoInfo.video_details.title;
-        console.log(`Video info obtained: ${title}`);
+      // Get playlist info
+      playlistInfo = await play.playlist_info(url, { incomplete: true });
+      const videos = await playlistInfo.all_videos();
+      
+      if (videos.length === 0) {
+        return interaction.editReply('❌ This playlist is empty or private.');
       }
       
+      console.log(`Playlist found: ${playlistInfo.title} - ${videos.length} videos`);
+      
+      // Use first video info for initial setup
+      title = playlistInfo.title;
+      url = videos[0].url;
+      
+    } else if (urlType === 'video') {
+      console.log(`Processing YouTube video: ${url}`);
+      const videoInfo = await play.video_info(url);
+      title = videoInfo.video_details.title;
+      console.log(`Video info obtained: ${title}`);
+      
     } else {
-      // Search for the query
+      // Not a real video/playlist URL → treat as search query
       console.log(`Searching for: ${query}`);
       
       // Try Spotify first for better search results
