@@ -13,11 +13,11 @@ services:
       - ../.env
     volumes:
       # Mount data directory for persistence using named volume
-      - bot-data:/app/data
+      - music-bot-data:/app/data
       # Optional: mount logs if implemented  
-      - bot-logs:/app/logs
+      - music-bot-logs:/app/logs
     networks:
-      - bot-network
+      - music-bot-network
     # Optional healthcheck
     healthcheck:
       test: ['CMD', 'node', '-e', 'process.exit(0)']
@@ -36,11 +36,14 @@ services:
           memory: 128M
 
 networks:
-  bot-network:
+  music-bot-network:
     driver: bridge
+    name: dg-music-bot-network
 
 volumes:
-  bot-data:
+  music-bot-data:
     driver: local
-  bot-logs:
+    name: dg-music-bot-data
+  music-bot-logs:
     driver: local
+    name: dg-music-bot-logs
