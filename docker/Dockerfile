@@ -1,21 +1,19 @@
 # Dockerfile para DG Music Bot
 FROM node:22-alpine
 
-# Instala ffmpeg y dependencias del sistema para cifrado de voz
 # Install system dependencies including yt-dlp
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     ffmpeg \
     python3 \
-    python3-pip \
+    py3-pip \
     g++ \
     make \
     libsodium-dev \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && ln -sf python3 /usr/bin/python
 
 # Install yt-dlp globally
 RUN pip3 install yt-dlp
-    ln -sf python3 /usr/bin/python
 
 # Crea directorio de trabajo
 WORKDIR /app
