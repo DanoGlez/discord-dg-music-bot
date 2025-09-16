@@ -4,9 +4,9 @@ FROM node:22-alpine
 # Instala ffmpeg
 RUN apk add --no-cache ffmpeg
 
-WORKDIR /app
+WORKDIR /src
 COPY package*.json ./
-RUN npm install
+RUN npm install --ignore-scripts
 COPY . .
 
 CMD ["npm", "start"]
