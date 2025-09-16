@@ -179,6 +179,40 @@ async function handleTest(interaction) {
   // Test 1: Check if user is in voice channel
   testResults.push('## 🎯 Test Results\n');
   
+  // Test 0: Check encryption libraries
+  testResults.push('🔄 **Checking encryption libraries...**');
+  let encryptionStatus = '';
+  try {
+    // Check for available encryption libraries
+    let availableLibs = [];
+    
+    try {
+      require('sodium-native');
+      availableLibs.push('sodium-native');
+    } catch (e) {}
+    
+    try {
+      require('tweetnacl');
+      availableLibs.push('tweetnacl');
+    } catch (e) {}
+    
+    try {
+      require('libsodium-wrappers');
+      availableLibs.push('libsodium-wrappers');
+    } catch (e) {}
+    
+    if (availableLibs.length > 0) {
+      testResults.push(`✅ **Encryption**: Available libraries: ${availableLibs.join(', ')}`);
+    } else {
+      testResults.push('❌ **Encryption**: No encryption libraries found');
+      encryptionStatus = '❌ Missing encryption libraries';
+      overallStatus = '❌';
+    }
+  } catch (e) {
+    testResults.push(`❌ **Encryption**: Error checking libraries: ${e.message}`);
+    overallStatus = '❌';
+  }
+  
   if (!voiceChannel) {
     testResults.push('❌ **Voice Channel**: Not in a voice channel');
     overallStatus = '❌';
@@ -331,6 +365,11 @@ async function handleTest(interaction) {
       
       // Add some troubleshooting info
       testResults.push('\n## 🔧 Troubleshooting');
+      if (encryptionStatus) {
+        testResults.push(`• ${encryptionStatus}`);
+        testResults.push('• Install: `npm install sodium-native tweetnacl libsodium-wrappers`');
+        testResults.push('• Or rebuild Docker container with crypto dependencies');
+      }
       testResults.push('• Make sure the bot has "Connect" and "Speak" permissions');
       testResults.push('• Check if the voice channel is full');
       testResults.push('• Try in a different voice channel');

@@ -1,8 +1,8 @@
 # Dockerfile para DG Music Bot
 FROM node:22-alpine
 
-# Instala ffmpeg y dependencias del sistema
-RUN apk add --no-cache ffmpeg python3 make g++ && \
+# Instala ffmpeg y dependencias del sistema para cifrado de voz
+RUN apk add --no-cache ffmpeg python3 make g++ libsodium-dev && \
     ln -sf python3 /usr/bin/python
 
 # Crea directorio de trabajo
