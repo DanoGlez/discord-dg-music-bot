@@ -1,29 +1,38 @@
 const play = require('play-dl');
 
 /**
- * Initialize play-dl with multiple fallback strategies
+ * Initialize play-dl with multiple fallback strategies and realistic browser simulation
  */
 async function initializePlayDL() {
   try {
     console.log('🔧 Initializing play-dl with anti-bot strategies...');
     
-    // Strategy 1: Try without cookies first (sometimes more stable)
+    // Strategy 1: Configure with realistic browser headers
     await play.setToken({
       youtube: {
-        cookie: ''
+        cookie: process.env.YOUTUBE_COOKIES || ''
       }
     });
     
+    // Set realistic user agent for Linux server
+    const userAgents = [
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+    ];
+    
+    const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+    
+    // Configure play-dl with the user agent if available
+    if (play.setUA) {
+      play.setUA(randomUA);
+    }
+    
     // Add random delay to mimic human behavior
-    const delay = Math.floor(Math.random() * 2000) + 1000; // 1-3 seconds
+    const delay = Math.floor(Math.random() * 3000) + 2000; // 2-5 seconds
     await new Promise(resolve => setTimeout(resolve, delay));
     
     console.log('✅ play-dl initialized with YouTube basic access');
-    
-    // Set user agent to mimic real browser
-    if (play.setUA) {
-      play.setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-    }
     
   } catch (error) {
     console.error('❌ Error initializing play-dl:', error.message);
@@ -40,30 +49,46 @@ async function initializePlayDL() {
 }
 
 /**
- * Enhanced search with retry logic and anti-bot measures
+ * Enhanced search with retry logic, rotating user agents, and better anti-bot measures
  */
 async function searchWithRetry(query, options = {}) {
-  const maxRetries = 3;
-  const baseDelay = 2000;
+  const maxRetries = parseInt(process.env.MAX_RETRIES) || 5;
+  const baseDelay = parseInt(process.env.RATE_LIMIT_DELAY) || 5000;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`🔍 Search attempt ${attempt}/${maxRetries}: ${query}`);
       
-      // Add random delay between requests
+      // Add progressive delay between requests
       if (attempt > 1) {
-        const delay = baseDelay * attempt + Math.floor(Math.random() * 1000);
+        const delay = baseDelay * Math.pow(1.5, attempt - 1) + Math.floor(Math.random() * 2000);
         console.log(`⏳ Waiting ${delay}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
       
-      const results = await play.search(query, {
-        limit: options.limit || 5,
+      // Try different search strategies
+      let searchQuery = query;
+      if (attempt > 2) {
+        // Add variations to avoid bot detection
+        searchQuery = `${query} official`;
+      }
+      if (attempt > 3) {
+        searchQuery = `${query} audio`;
+      }
+      
+      const results = await play.search(searchQuery, {
+        limit: options.limit || 10, // Más resultados para tener alternativas
         source: { youtube: 'video' },
         ...options
       });
       
-      return results;
+      if (results && results.length > 0) {
+        console.log(`✅ Found ${results.length} results`);
+        return results;
+      }
+      
+      throw new Error('No results found');
+      
     } catch (error) {
       console.error(`❌ Search attempt ${attempt} failed:`, error.message);
       
@@ -71,9 +96,11 @@ async function searchWithRetry(query, options = {}) {
         throw new Error(`Search failed after ${maxRetries} attempts: ${error.message}`);
       }
       
-      // If we get bot detection, wait longer
+      // If we get bot detection, wait much longer
       if (error.message.includes('bot') || error.message.includes('Sign in')) {
-        await new Promise(resolve => setTimeout(resolve, 5000 * attempt));
+        const longDelay = baseDelay * 2 * attempt; // 10s, 20s, 30s, etc.
+        console.log(`🤖 Bot detection - waiting ${longDelay}ms`);
+        await new Promise(resolve => setTimeout(resolve, longDelay));
       }
     }
   }
