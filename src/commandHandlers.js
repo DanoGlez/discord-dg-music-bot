@@ -186,8 +186,9 @@ async function handleTest(interaction) {
     testResults.push(`✅ **Voice Channel**: Connected to "${voiceChannel.name}"`);
     
     try {
-      // Test 2: Try to join voice channel
+      // Test 2: Try to join voice channel with better error handling
       testResults.push('🔄 **Connecting to voice channel...**');
+      console.log(`[TEST] Attempting to join voice channel: ${voiceChannel.name} (${voiceChannel.id})`);
       
       const connection = joinVoiceChannel({
         channelId: voiceChannel.id,
@@ -195,19 +196,45 @@ async function handleTest(interaction) {
         adapterCreator: interaction.guild.voiceAdapterCreator
       });
       
-      // Wait for connection to be ready
+      console.log(`[TEST] Connection created, current state: ${connection.state.status}`);
+      
+      // Wait for connection to be ready with detailed logging
       await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
+        const timeout = setTimeout(() => {
+          console.log(`[TEST] Connection timeout after 8 seconds, current state: ${connection.state.status}`);
+          reject(new Error('Connection timeout'));
+        }, 8000);
         
         connection.on(VoiceConnectionStatus.Ready, () => {
+          console.log('[TEST] Voice connection ready!');
           clearTimeout(timeout);
           resolve();
         });
         
-        connection.on(VoiceConnectionStatus.Disconnected, () => {
-          clearTimeout(timeout);
-          reject(new Error('Connection failed'));
+        connection.on(VoiceConnectionStatus.Connecting, () => {
+          console.log('[TEST] Voice connection connecting...');
         });
+        
+        connection.on(VoiceConnectionStatus.Disconnected, () => {
+          console.log('[TEST] Voice connection disconnected');
+          clearTimeout(timeout);
+          reject(new Error('Connection failed - disconnected'));
+        });
+        
+        connection.on(VoiceConnectionStatus.Destroyed, () => {
+          console.log('[TEST] Voice connection destroyed');
+          clearTimeout(timeout);
+          reject(new Error('Connection failed - destroyed'));
+        });
+        
+        connection.on('error', (error) => {
+          console.log(`[TEST] Voice connection error: ${error.message}`);
+          clearTimeout(timeout);
+          reject(error);
+        });
+        
+        // Log initial state
+        console.log(`[TEST] Initial connection state: ${connection.state.status}`);
       });
       
       testResults.push('✅ **Voice Connection**: Successfully connected');
@@ -221,21 +248,22 @@ async function handleTest(interaction) {
       testResults.push('🔄 **Testing YouTube search...**');
       let searchResults = null;
       try {
-        searchResults = await searchWithRetry('test audio', { limit: 1 });
+        searchResults = await searchWithRetry('test audio short', { limit: 1 });
         if (searchResults && searchResults.length > 0) {
           testResults.push(`✅ **YouTube Search**: Found "${searchResults[0].title}"`);
         } else {
           testResults.push('⚠️ **YouTube Search**: No results found');
         }
       } catch (searchError) {
+        console.log(`[TEST] Search error: ${searchError.message}`);
         testResults.push(`❌ **YouTube Search**: ${searchError.message}`);
         overallStatus = '⚠️';
       }
       
-      // Test 5: Test streaming capability
-      testResults.push('🔄 **Testing audio streaming...**');
-      try {
-        if (searchResults && searchResults.length > 0) {
+      // Test 5: Test streaming capability (only if search was successful)
+      if (searchResults && searchResults.length > 0) {
+        testResults.push('🔄 **Testing audio streaming...**');
+        try {
           const stream = await play.stream(searchResults[0].url, { 
             quality: 2,
             filter: 'audioonly',
@@ -253,10 +281,13 @@ async function handleTest(interaction) {
           if (stream.stream && typeof stream.stream.destroy === 'function') {
             stream.stream.destroy();
           }
+        } catch (streamError) {
+          console.log(`[TEST] Stream error: ${streamError.message}`);
+          testResults.push(`❌ **Audio Streaming**: ${streamError.message}`);
+          overallStatus = '❌';
         }
-      } catch (streamError) {
-        testResults.push(`❌ **Audio Streaming**: ${streamError.message}`);
-        overallStatus = '❌';
+      } else {
+        testResults.push('⏭️ **Audio Streaming**: Skipped (no search results)');
       }
       
       // Test 6: Permissions check
@@ -272,17 +303,38 @@ async function handleTest(interaction) {
         overallStatus = '❌';
       }
       
+      // Test 7: Voice channel capacity check
+      if (voiceChannel.userLimit > 0 && voiceChannel.members.size >= voiceChannel.userLimit) {
+        testResults.push('⚠️ **Channel Capacity**: Voice channel may be full');
+        overallStatus = '⚠️';
+      } else {
+        testResults.push('✅ **Channel Capacity**: Voice channel has space');
+      }
+      
       // Clean up connection
       setTimeout(() => {
-        connection.destroy();
+        try {
+          connection.destroy();
+          console.log('[TEST] Connection cleaned up');
+        } catch (e) {
+          console.log('[TEST] Error cleaning up connection:', e.message);
+        }
       }, 2000);
       
       testResults.push('\n## 📊 Summary');
       testResults.push(`**Overall Status**: ${overallStatus === '✅' ? 'All tests passed!' : overallStatus === '⚠️' ? 'Some issues detected' : 'Critical issues found'}`);
       
     } catch (error) {
+      console.log(`[TEST] Main error: ${error.message}`);
       testResults.push(`❌ **Voice Connection**: ${error.message}`);
       overallStatus = '❌';
+      
+      // Add some troubleshooting info
+      testResults.push('\n## 🔧 Troubleshooting');
+      testResults.push('• Make sure the bot has "Connect" and "Speak" permissions');
+      testResults.push('• Check if the voice channel is full');
+      testResults.push('• Try in a different voice channel');
+      testResults.push('• Verify bot is not already connected elsewhere');
     }
   }
   
