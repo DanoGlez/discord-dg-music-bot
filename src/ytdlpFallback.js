@@ -49,16 +49,24 @@ class YtdlpFallback {
 
         try {
             const options = {
-                format: 'bestaudio[ext=webm]/bestaudio[ext=m4a]/best[height<=480]/best',
+                format: 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best[height<=480]/best',
                 extractFlat: false,
                 noWarnings: true,
                 noCheckCertificate: true,
                 preferFreeFormats: true,
                 youtubeSkipDashManifest: true,
+                retries: 3,
+                fragmentRetries: 3,
+                skipUnavailableFragments: true,
                 addHeader: [
                     'User-Agent:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept-Language:en-US,en;q=0.9',
-                    'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language:en-US,en;q=0.5',
+                    'Accept-Encoding:gzip, deflate, br',
+                    'DNT:1',
+                    'Connection:keep-alive',
+                    'Upgrade-Insecure-Requests:1',
+                    'Sec-Fetch-Dest:document',
                     'Sec-Fetch-Mode:navigate',
                     'Sec-Fetch-Site:none'
                 ]
@@ -77,25 +85,52 @@ class YtdlpFallback {
                 noDownload: true
             });
 
-            if (!info.url && !info.formats) {
-                throw new Error('No stream URL found');
+            console.log(`📊 [YTDLP] Info received:`, {
+                hasUrl: !!info.url,
+                hasFormats: !!info.formats,
+                formatsCount: info.formats ? info.formats.length : 0,
+                title: info.title || 'Unknown'
+            });
+
+            if (!info.url && (!info.formats || info.formats.length === 0)) {
+                throw new Error('No stream URL or formats found');
             }
 
             // Buscar el mejor formato de audio
             let streamUrl = info.url;
             if (info.formats && info.formats.length > 0) {
-                const audioFormats = info.formats.filter(f => 
-                    f.acodec && f.acodec !== 'none' && 
-                    (f.ext === 'webm' || f.ext === 'm4a' || f.ext === 'mp4')
-                );
+                console.log(`🔍 [YTDLP] Processing ${info.formats.length} formats...`);
+                
+                const audioFormats = info.formats.filter(f => {
+                    const hasAudio = f.acodec && f.acodec !== 'none';
+                    const isGoodFormat = f.ext === 'webm' || f.ext === 'm4a' || f.ext === 'mp4';
+                    const hasUrl = !!f.url;
+                    
+                    console.log(`Format ${f.format_id}: acodec=${f.acodec}, ext=${f.ext}, hasUrl=${hasUrl}`);
+                    
+                    return hasAudio && isGoodFormat && hasUrl;
+                });
+                
+                console.log(`🎵 [YTDLP] Found ${audioFormats.length} audio formats`);
                 
                 if (audioFormats.length > 0) {
                     // Preferir webm > m4a > mp4
                     const preferredFormat = audioFormats.find(f => f.ext === 'webm') ||
                                           audioFormats.find(f => f.ext === 'm4a') ||
                                           audioFormats[0];
+                    
+                    console.log(`✅ [YTDLP] Selected format: ${preferredFormat.format_id} (${preferredFormat.ext})`);
                     streamUrl = preferredFormat.url;
+                } else if (info.url) {
+                    console.log(`⚠️ [YTDLP] No suitable audio formats, using direct URL`);
+                    streamUrl = info.url;
+                } else {
+                    throw new Error('No suitable audio format found and no direct URL available');
                 }
+            }
+
+            if (!streamUrl) {
+                throw new Error('Could not extract stream URL');
             }
 
             console.log(`✅ [YTDLP] Stream extracted successfully`);
