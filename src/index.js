@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const commands = require('./commands');
-const { handlePlay, handleQueue } = require('./music');
+const { handlePlay, handleQueue, handleSkip, handleStop } = require('./commandHandlers');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 
@@ -30,6 +30,12 @@ client.on('interactionCreate', async (interaction) => {
     }
     if (interaction.commandName === 'queue') {
       await handleQueue(interaction);
+    }
+    if (interaction.commandName === 'skip') {
+      await handleSkip(interaction);
+    }
+    if (interaction.commandName === 'stop') {
+      await handleStop(interaction);
     }
   } catch (error) {
     console.error('Error handling command:', error);

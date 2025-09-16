@@ -13,6 +13,14 @@ const commands = [
   new SlashCommandBuilder()
     .setName('queue')
     .setDescription('Show the current music queue')
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('skip')
+    .setDescription('Skip the current song')
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('stop')
+    .setDescription('Stop music and disconnect from voice channel')
     .toJSON()
 ];
 
