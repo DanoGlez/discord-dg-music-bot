@@ -7,6 +7,9 @@ const { searchSpotifyTrack } = require('./spotify');
 const queues = new Map();
 
 async function handlePlay(interaction) {
+  // Defer the reply immediately to prevent timeout
+  await interaction.deferReply();
+  
   const guildId = interaction.guild.id;
   const query = interaction.options.getString('query');
   let url = query;
@@ -23,7 +26,7 @@ async function handlePlay(interaction) {
       
       const ytRes = await ytSearch(url);
       if (!ytRes.videos.length) {
-        return interaction.reply('❌ No videos found for your search query.');
+        return interaction.editReply('❌ No videos found for your search query.');
       }
       
       url = ytRes.videos[0].url;
@@ -40,13 +43,13 @@ async function handlePlay(interaction) {
         
         // Categorize the error
         if (infoError.statusCode === 410) {
-          return interaction.reply(`❌ This video is no longer available or has been removed.`);
+          return interaction.editReply(`❌ This video is no longer available or has been removed.`);
         } else if (infoError.statusCode === 403) {
-          return interaction.reply(`❌ Access denied. This video may be restricted in your region.`);
+          return interaction.editReply(`❌ Access denied. This video may be restricted in your region.`);
         } else if (infoError.statusCode === 429) {
-          return interaction.reply(`❌ Rate limit exceeded. Please try again in a few minutes.`);
+          return interaction.editReply(`❌ Rate limit exceeded. Please try again in a few minutes.`);
         } else {
-          return interaction.reply(`❌ Unable to access this video. It may be private, restricted, or unavailable.`);
+          return interaction.editReply(`❌ Unable to access this video. It may be private, restricted, or unavailable.`);
         }
       }
     }
@@ -54,7 +57,7 @@ async function handlePlay(interaction) {
     const member = interaction.member;
     const voiceChannel = member.voice.channel;
     if (!voiceChannel) {
-      return interaction.reply('❌ You must be in a voice channel to use this command.');
+      return interaction.editReply('❌ You must be in a voice channel to use this command.');
     }
 
     if (!queues.has(guildId)) {
@@ -86,8 +89,17 @@ async function handlePlay(interaction) {
       try {
         console.log(`Attempting to play: ${next.title} - URL: ${next.url}`);
         
-        // Verify the URL is still valid
-        const info = await ytdl.getInfo(next.url);
+        // Add timeout for ytdl operations
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Operation timeout')), 10000)
+        );
+        
+        // Verify the URL is still valid with timeout
+        const info = await Promise.race([
+          ytdl.getInfo(next.url),
+          timeoutPromise
+        ]);
+        
         if (!info) {
           throw new Error('Unable to get video information');
         }
@@ -95,7 +107,18 @@ async function handlePlay(interaction) {
         const stream = ytdl(next.url, { 
           filter: 'audioonly',
           quality: 'highestaudio',
-          highWaterMark: 1 << 25 // 32MB buffer
+          highWaterMark: 1 << 25, // 32MB buffer
+          requestOptions: {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          }
+        });
+        
+        // Handle stream errors
+        stream.on('error', (streamError) => {
+          console.error(`Stream error for ${next.title}:`, streamError.message);
+          playNext(); // Skip to next song
         });
         
         const resource = createAudioResource(stream);
@@ -103,7 +126,7 @@ async function handlePlay(interaction) {
         
         player.once('idle', playNext);
         
-        // Handle potential interaction expiry
+        // Send playing message
         try {
           await interaction.followUp({ content: `🎶 Now playing: **${next.title}** (requested by ${next.requestedBy})` });
         } catch (followUpError) {
@@ -113,9 +136,13 @@ async function handlePlay(interaction) {
       } catch (error) {
         console.error(`Error playing ${next.title}:`, error.message);
         
-        // Categorize playback errors
+        // Categorize playback errors more specifically
         let errorMessage = 'Unknown playback error';
-        if (error.statusCode === 410) {
+        if (error.message.includes('Could not extract functions')) {
+          errorMessage = 'YouTube extraction error (try a different video)';
+        } else if (error.message.includes('Operation timeout')) {
+          errorMessage = 'Request timed out';
+        } else if (error.statusCode === 410) {
           errorMessage = 'Video is no longer available';
         } else if (error.statusCode === 403) {
           errorMessage = 'Access denied or region-restricted';
@@ -127,24 +154,48 @@ async function handlePlay(interaction) {
           errorMessage = 'No playable audio format found';
         }
         
-        // Try to find an alternative
+        // Try to find an alternative with better error handling
         try {
           console.log(`Searching for alternative to: ${next.title}`);
-          const ytRes = await ytSearch(next.title);
+          const ytRes = await Promise.race([
+            ytSearch(next.title),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Search timeout')), 5000))
+          ]);
+          
           if (ytRes.videos.length > 0) {
             const alternative = ytRes.videos[0];
+            // Skip if it's the same URL that failed
+            if (alternative.url === next.url && ytRes.videos.length > 1) {
+              alternative = ytRes.videos[1];
+            }
+            
             console.log(`Alternative found: ${alternative.title} - ${alternative.url}`);
             
-            // Validate alternative before playing
-            const altInfo = await ytdl.getInfo(alternative.url);
+            // Validate alternative before playing with timeout
+            const altInfo = await Promise.race([
+              ytdl.getInfo(alternative.url),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Alternative validation timeout')), 5000))
+            ]);
+            
             if (!altInfo) {
               throw new Error('Alternative video not accessible');
             }
             
             const stream = ytdl(alternative.url, { 
               filter: 'audioonly',
-              quality: 'highestaudio'
+              quality: 'highestaudio',
+              requestOptions: {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+              }
             });
+            
+            stream.on('error', (streamError) => {
+              console.error(`Alternative stream error:`, streamError.message);
+              playNext(); // Skip to next song
+            });
+            
             const resource = createAudioResource(stream);
             player.play(resource);
             
@@ -152,7 +203,7 @@ async function handlePlay(interaction) {
             
             try {
               await interaction.followUp({ 
-                content: `🎶 Now playing (alternative): **${alternative.title}** (requested by ${next.requestedBy})\n⚠️ Original video was ${errorMessage.toLowerCase()}` 
+                content: `🎶 Now playing (alternative): **${alternative.title}** (requested by ${next.requestedBy})\n⚠️ Original video had: ${errorMessage.toLowerCase()}` 
               });
             } catch (followUpError) {
               console.log('Could not send alternative follow-up message');
@@ -178,9 +229,9 @@ async function handlePlay(interaction) {
     };
 
     playNext();
-    await interaction.reply(`Added to queue: **${title}**`);
+    await interaction.editReply(`✅ Added to queue: **${title}**`);
   } else {
-    await interaction.reply(`Added to queue: **${title}**`);
+    await interaction.editReply(`✅ Added to queue: **${title}**`);
   }
   } catch (error) {
     console.error('Error in handlePlay:', error.message);
@@ -198,11 +249,7 @@ async function handlePlay(interaction) {
     }
     
     try {
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(`❌ ${userMessage}`);
-      } else {
-        await interaction.reply(`❌ ${userMessage}`);
-      }
+      await interaction.editReply(`❌ ${userMessage}`);
     } catch (replyError) {
       console.error('Could not send error message to user:', replyError.message);
     }
