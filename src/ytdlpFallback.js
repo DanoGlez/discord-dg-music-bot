@@ -40,109 +40,159 @@ class YtdlpFallback {
      */
     async getStreamUrl(videoUrl) {
         const randomDelay = Math.floor(Math.random() * 
-            (parseInt(process.env.RANDOM_DELAY_MAX) || 8000 - 
-             parseInt(process.env.RANDOM_DELAY_MIN) || 3000)) + 
-            parseInt(process.env.RANDOM_DELAY_MIN) || 3000;
+            (parseInt(process.env.RANDOM_DELAY_MAX) || 15000 - 
+             parseInt(process.env.RANDOM_DELAY_MIN) || 5000)) + 
+            parseInt(process.env.RANDOM_DELAY_MIN) || 5000;
 
         console.log(`⏳ [YTDLP] Waiting ${randomDelay}ms before extraction...`);
         await new Promise(resolve => setTimeout(resolve, randomDelay));
 
         try {
+            // Simplified options that are more likely to work in Docker
             const options = {
-                format: 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best[height<=480]/best',
-                extractFlat: false,
+                dumpSingleJson: true,
+                noDownload: true,
                 noWarnings: true,
-                noCheckCertificate: true,
-                preferFreeFormats: true,
-                youtubeSkipDashManifest: true,
-                retries: 3,
-                fragmentRetries: 3,
-                skipUnavailableFragments: true,
-                addHeader: [
-                    'User-Agent:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                    'Accept-Language:en-US,en;q=0.5',
-                    'Accept-Encoding:gzip, deflate, br',
-                    'DNT:1',
-                    'Connection:keep-alive',
-                    'Upgrade-Insecure-Requests:1',
-                    'Sec-Fetch-Dest:document',
-                    'Sec-Fetch-Mode:navigate',
-                    'Sec-Fetch-Site:none'
-                ]
+                format: 'bestaudio/best'
             };
 
-            // Opciones adicionales para bypass
-            if (process.env.BYPASS_AGE_GATE === 'true') {
-                options.ageLimit = 99;
-                options.skipDownload = false;
+            console.log(`🎵 [YTDLP] Extracting stream from: ${videoUrl}`);
+            
+            let info;
+            try {
+                info = await youtubedl(videoUrl, options);
+            } catch (execError) {
+                console.error(`❌ [YTDLP] Execution error: ${execError.message}`);
+                
+                // Try alternative method with getUrl
+                console.log(`🔄 [YTDLP] Trying alternative getUrl method...`);
+                try {
+                    const urlResult = await youtubedl(videoUrl, {
+                        getUrl: true,
+                        format: 'bestaudio'
+                    });
+                    
+                    if (typeof urlResult === 'string' && urlResult.startsWith('http')) {
+                        console.log(`✅ [YTDLP] Got direct URL via getUrl method`);
+                        return {
+                            url: urlResult,
+                            title: 'Audio Stream',
+                            duration: 0,
+                            thumbnail: null
+                        };
+                    }
+                } catch (urlError) {
+                    console.error(`❌ [YTDLP] getUrl method also failed: ${urlError.message}`);
+                }
+                
+                throw execError;
             }
 
-            console.log(`🎵 [YTDLP] Extracting stream from: ${videoUrl}`);
-            const info = await youtubedl(videoUrl, {
-                ...options,
-                dumpSingleJson: true,
-                noDownload: true
-            });
+            // Debug más detallado
+            console.log(`📊 [YTDLP] Response type: ${typeof info}`);
+            
+            if (!info) {
+                throw new Error('yt-dlp returned null/undefined response');
+            }
 
-            console.log(`📊 [YTDLP] Info received:`, {
+            if (typeof info === 'string') {
+                // Sometimes yt-dlp returns a string (direct URL)
+                if (info.startsWith('http')) {
+                    console.log(`✅ [YTDLP] Got direct URL string`);
+                    return {
+                        url: info,
+                        title: 'Audio Stream',
+                        duration: 0,
+                        thumbnail: null
+                    };
+                } else {
+                    throw new Error(`yt-dlp returned unexpected string: ${info.substring(0, 100)}`);
+                }
+            }
+
+            if (typeof info !== 'object') {
+                throw new Error(`yt-dlp returned unexpected type: ${typeof info}`);
+            }
+
+            console.log(`📊 [YTDLP] Info keys: ${Object.keys(info).join(', ')}`);
+            console.log(`📊 [YTDLP] Info details:`, {
                 hasUrl: !!info.url,
                 hasFormats: !!info.formats,
                 formatsCount: info.formats ? info.formats.length : 0,
-                title: info.title || 'Unknown'
+                title: info.title || 'Unknown',
+                id: info.id || 'Unknown'
             });
 
-            if (!info.url && (!info.formats || info.formats.length === 0)) {
-                throw new Error('No stream URL or formats found');
+            // Look for stream URL
+            let streamUrl = null;
+            
+            // Method 1: Direct URL
+            if (info.url && typeof info.url === 'string' && info.url.startsWith('http')) {
+                streamUrl = info.url;
+                console.log(`✅ [YTDLP] Using direct URL from info.url`);
             }
-
-            // Buscar el mejor formato de audio
-            let streamUrl = info.url;
-            if (info.formats && info.formats.length > 0) {
+            
+            // Method 2: From formats
+            else if (info.formats && Array.isArray(info.formats) && info.formats.length > 0) {
                 console.log(`🔍 [YTDLP] Processing ${info.formats.length} formats...`);
                 
+                // Find audio formats
                 const audioFormats = info.formats.filter(f => {
                     const hasAudio = f.acodec && f.acodec !== 'none';
-                    const isGoodFormat = f.ext === 'webm' || f.ext === 'm4a' || f.ext === 'mp4';
-                    const hasUrl = !!f.url;
+                    const hasUrl = f.url && typeof f.url === 'string' && f.url.startsWith('http');
                     
-                    console.log(`Format ${f.format_id}: acodec=${f.acodec}, ext=${f.ext}, hasUrl=${hasUrl}`);
+                    if (hasAudio && hasUrl) {
+                        console.log(`🎵 [YTDLP] Found audio format: ${f.format_id} (${f.ext || 'unknown'}) - ${f.acodec}`);
+                    }
                     
-                    return hasAudio && isGoodFormat && hasUrl;
+                    return hasAudio && hasUrl;
                 });
                 
-                console.log(`🎵 [YTDLP] Found ${audioFormats.length} audio formats`);
-                
                 if (audioFormats.length > 0) {
-                    // Preferir webm > m4a > mp4
-                    const preferredFormat = audioFormats.find(f => f.ext === 'webm') ||
+                    // Prefer webm/opus > m4a/aac > any audio
+                    const preferredFormat = audioFormats.find(f => f.ext === 'webm' && f.acodec?.includes('opus')) ||
                                           audioFormats.find(f => f.ext === 'm4a') ||
+                                          audioFormats.find(f => f.ext === 'webm') ||
                                           audioFormats[0];
                     
-                    console.log(`✅ [YTDLP] Selected format: ${preferredFormat.format_id} (${preferredFormat.ext})`);
                     streamUrl = preferredFormat.url;
-                } else if (info.url) {
-                    console.log(`⚠️ [YTDLP] No suitable audio formats, using direct URL`);
-                    streamUrl = info.url;
+                    console.log(`✅ [YTDLP] Selected format: ${preferredFormat.format_id} (${preferredFormat.ext || 'unknown'})`);
                 } else {
-                    throw new Error('No suitable audio format found and no direct URL available');
+                    console.log(`⚠️ [YTDLP] No audio formats found, checking all formats...`);
+                    
+                    // Fallback: any format with URL
+                    const anyFormat = info.formats.find(f => f.url && f.url.startsWith('http'));
+                    if (anyFormat) {
+                        streamUrl = anyFormat.url;
+                        console.log(`⚠️ [YTDLP] Using fallback format: ${anyFormat.format_id}`);
+                    }
                 }
             }
 
             if (!streamUrl) {
-                throw new Error('Could not extract stream URL');
+                const errorDetails = {
+                    hasUrl: !!info.url,
+                    hasFormats: !!info.formats,
+                    formatsCount: info.formats ? info.formats.length : 0,
+                    urlType: typeof info.url,
+                    urlValue: info.url ? info.url.substring(0, 50) : 'null'
+                };
+                console.log(`❌ [YTDLP] Could not extract stream URL. Details:`, errorDetails);
+                throw new Error(`Could not extract stream URL from yt-dlp response`);
             }
 
             console.log(`✅ [YTDLP] Stream extracted successfully`);
             return {
                 url: streamUrl,
-                title: info.title || 'Unknown',
+                title: info.title || 'Unknown Title',
                 duration: info.duration || 0,
-                thumbnail: info.thumbnail
+                thumbnail: info.thumbnail || null
             };
 
         } catch (error) {
             console.error(`❌ [YTDLP] Stream extraction failed: ${error.message}`);
+
+
             
             // Retry logic
             if (this.retryCount < this.maxRetries) {
