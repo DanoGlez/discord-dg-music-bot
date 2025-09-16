@@ -1,5 +1,6 @@
 const play = require('play-dl');
 const { searchSpotifyTrack } = require('./spotify');
+const { searchWithRetry } = require('./playDLConfig');
 
 async function processQuery(query) {
   let url = query;
@@ -45,10 +46,10 @@ async function processQuery(query) {
       query = spotifyResult; // Use Spotify result for YouTube search
     }
     
-    // Search on YouTube
-    const searchResults = await play.search(query, { limit: 1, source: { youtube: 'video' } });
+    // Search on YouTube with retry logic
+    const searchResults = await searchWithRetry(query, { limit: 3 });
     if (searchResults.length === 0) {
-      throw new Error('No videos found for your search query.');
+      throw new Error('No videos found for your search query after multiple attempts.');
     }
     
     url = searchResults[0].url;

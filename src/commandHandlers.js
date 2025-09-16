@@ -10,6 +10,9 @@ const {
 } = require('./queueManager');
 const { createPlayer } = require('./audioPlayer');
 const { processQuery, formatPlaylistDuration } = require('./musicSearch');
+const { joinVoiceChannel, VoiceConnectionStatus, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
+const { searchWithRetry } = require('./playDLConfig');
+const play = require('play-dl');
 
 async function handlePlay(interaction) {
   // Defer the reply immediately to prevent timeout
@@ -163,9 +166,135 @@ function handleStop(interaction) {
   return interaction.reply('⏹️ Music stopped and disconnected from voice channel!');
 }
 
+async function handleTest(interaction) {
+  // Defer the reply immediately
+  await interaction.deferReply();
+  
+  const member = interaction.member;
+  const voiceChannel = member.voice.channel;
+  
+  let testResults = [];
+  let overallStatus = '✅';
+  
+  // Test 1: Check if user is in voice channel
+  testResults.push('## 🎯 Test Results\n');
+  
+  if (!voiceChannel) {
+    testResults.push('❌ **Voice Channel**: Not in a voice channel');
+    overallStatus = '❌';
+  } else {
+    testResults.push(`✅ **Voice Channel**: Connected to "${voiceChannel.name}"`);
+    
+    try {
+      // Test 2: Try to join voice channel
+      testResults.push('🔄 **Connecting to voice channel...**');
+      
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: interaction.guild.id,
+        adapterCreator: interaction.guild.voiceAdapterCreator
+      });
+      
+      // Wait for connection to be ready
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
+        
+        connection.on(VoiceConnectionStatus.Ready, () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        
+        connection.on(VoiceConnectionStatus.Disconnected, () => {
+          clearTimeout(timeout);
+          reject(new Error('Connection failed'));
+        });
+      });
+      
+      testResults.push('✅ **Voice Connection**: Successfully connected');
+      
+      // Test 3: Try to create audio player
+      testResults.push('🔄 **Testing audio player...**');
+      const player = createAudioPlayer();
+      testResults.push('✅ **Audio Player**: Created successfully');
+      
+      // Test 4: Test play-dl search functionality
+      testResults.push('🔄 **Testing YouTube search...**');
+      let searchResults = null;
+      try {
+        searchResults = await searchWithRetry('test audio', { limit: 1 });
+        if (searchResults && searchResults.length > 0) {
+          testResults.push(`✅ **YouTube Search**: Found "${searchResults[0].title}"`);
+        } else {
+          testResults.push('⚠️ **YouTube Search**: No results found');
+        }
+      } catch (searchError) {
+        testResults.push(`❌ **YouTube Search**: ${searchError.message}`);
+        overallStatus = '⚠️';
+      }
+      
+      // Test 5: Test streaming capability
+      testResults.push('🔄 **Testing audio streaming...**');
+      try {
+        if (searchResults && searchResults.length > 0) {
+          const stream = await play.stream(searchResults[0].url, { 
+            quality: 2,
+            filter: 'audioonly',
+            seek: 0,
+            discordPlayerCompatibility: true
+          });
+          
+          const resource = createAudioResource(stream.stream, {
+            inputType: stream.type
+          });
+          
+          testResults.push('✅ **Audio Streaming**: Stream created successfully');
+          
+          // Clean up
+          if (stream.stream && typeof stream.stream.destroy === 'function') {
+            stream.stream.destroy();
+          }
+        }
+      } catch (streamError) {
+        testResults.push(`❌ **Audio Streaming**: ${streamError.message}`);
+        overallStatus = '❌';
+      }
+      
+      // Test 6: Permissions check
+      testResults.push('🔄 **Checking permissions...**');
+      const permissions = voiceChannel.permissionsFor(interaction.guild.members.me);
+      const requiredPerms = ['Connect', 'Speak', 'UseVAD'];
+      const missingPerms = requiredPerms.filter(perm => !permissions.has(perm));
+      
+      if (missingPerms.length === 0) {
+        testResults.push('✅ **Permissions**: All required permissions available');
+      } else {
+        testResults.push(`❌ **Permissions**: Missing ${missingPerms.join(', ')}`);
+        overallStatus = '❌';
+      }
+      
+      // Clean up connection
+      setTimeout(() => {
+        connection.destroy();
+      }, 2000);
+      
+      testResults.push('\n## 📊 Summary');
+      testResults.push(`**Overall Status**: ${overallStatus === '✅' ? 'All tests passed!' : overallStatus === '⚠️' ? 'Some issues detected' : 'Critical issues found'}`);
+      
+    } catch (error) {
+      testResults.push(`❌ **Voice Connection**: ${error.message}`);
+      overallStatus = '❌';
+    }
+  }
+  
+  return interaction.editReply({
+    content: testResults.join('\n')
+  });
+}
+
 module.exports = { 
   handlePlay, 
   handleQueue, 
   handleSkip, 
-  handleStop 
+  handleStop,
+  handleTest
 };

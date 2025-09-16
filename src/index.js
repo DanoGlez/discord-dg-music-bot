@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const commands = require('./commands');
-const { handlePlay, handleQueue, handleSkip, handleStop } = require('./commandHandlers');
+const { handlePlay, handleQueue, handleSkip, handleStop, handleTest } = require('./commandHandlers');
 const { initializePlayDL } = require('./playDLConfig');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
@@ -43,6 +43,9 @@ client.on('interactionCreate', async (interaction) => {
     }
     if (interaction.commandName === 'stop') {
       await handleStop(interaction);
+    }
+    if (interaction.commandName === 'test') {
+      await handleTest(interaction);
     }
   } catch (error) {
     console.error('Error handling command:', error);

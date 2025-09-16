@@ -1,6 +1,7 @@
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, NoSubscriberBehavior } = require('@discordjs/voice');
 const play = require('play-dl');
 const { getServerQueue, scheduleAutoDisconnect, cancelAutoDisconnect } = require('./queueManager');
+const { searchWithRetry } = require('./playDLConfig');
 
 async function createPlayer(voiceChannel, interaction) {
   const guildId = interaction.guild.id;
@@ -91,10 +92,7 @@ async function handlePlaybackError(song, error, player, playNext, interaction) {
   try {
     console.log(`Searching for alternative to: ${song.title}`);
     
-    const searchResults = await play.search(song.title, { 
-      limit: 3, 
-      source: { youtube: 'video' } 
-    });
+    const searchResults = await searchWithRetry(song.title, { limit: 5 });
     
     if (searchResults.length > 0) {
       // Find a different video (not the same URL)

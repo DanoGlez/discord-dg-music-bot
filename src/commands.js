@@ -21,6 +21,10 @@ const commands = [
   new SlashCommandBuilder()
     .setName('stop')
     .setDescription('Stop music and disconnect from voice channel')
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('test')
+    .setDescription('Test bot voice connection and functionality')
     .toJSON()
 ];
 
