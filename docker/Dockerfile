@@ -13,7 +13,7 @@ COPY package*.json ./
 RUN sed -i '/"prepare":/d' package.json || true
 
 # Instala solo dependencias de producción
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+RUN npm install --omit=dev --ignore-scripts && npm cache clean --force
 
 # Copia código fuente
 COPY . .
