@@ -4,8 +4,8 @@
     "description": "Discord bot to play music from YouTube and search on Spotify.",
     "main": "index.js",
     "scripts": {
-        "start": "node index.js",
-        "dev": "nodemon index.js",
+        "start": "node src/index.js",
+        "dev": "nodemon src/index.js",
         "test": "node --test",
         "lint": "eslint . --ext .js",
         "lint:fix": "eslint . --ext .js --fix",
@@ -36,8 +36,12 @@
         "npm": ">=8.0.0"
     },
     "dependencies": {
+        "@discordjs/voice": "^0.16.0",
         "discord.js": "^14.14.1",
-        "dotenv": "^16.4.5"
+        "dotenv": "^16.4.5",
+        "ytdl-core": "^4.11.0",
+        "spotify-web-api-node": "^5.0.2",
+        "yt-search": "^2.10.4"
     },
     "devDependencies": {
         "eslint": "^8.57.1",
