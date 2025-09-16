@@ -11,8 +11,8 @@ WORKDIR /app
 # Copia archivos de dependencias
 COPY package*.json ./
 
-# Instala solo dependencias de producción
-RUN npm install --production --ignore-scripts && npm cache clean --force
+# Instala solo dependencias de producción (sin scripts de prepare/postinstall)
+RUN npm ci --only=production --ignore-scripts && npm cache clean --force
 
 # Copia código fuente
 COPY . .
